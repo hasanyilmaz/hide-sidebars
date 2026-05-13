@@ -1,7 +1,7 @@
 {
   "id": "hide-sidebars",
   "name": "Hide Sidebars",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.0.0",
   "description": "Enhanced sidebar control with auto-hide mode, dedicated toggle icons, and intuitive controls for independent left and right sidebars.",
   "author": "hasanyilmaz",

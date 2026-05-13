@@ -56,9 +56,9 @@
    this creates a dead zone where icons are visible but not clickable.
    Reset theme spacing so visual position matches clickable area.
 */
-body.is-hidden-frameless .hide-sidebars-overlay-left .workspace-tab-header-container {
-  margin-top: 0 !important;
-  padding-top: 0 !important;
+body.is-hidden-frameless .workspace-split.mod-left-split.hide-sidebars-overlay-left .workspace-tabs .workspace-tab-header-container {
+  margin-top: 0;
+  padding-top: 0;
 }
 
 /* Hide native sidebar toggle buttons in overlay mode */

@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    name: Build, attest, and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read release version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "TAG_VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
+
+      - name: Validate release metadata
+        run: |
+          node - <<'NODE'
+          const fs = require("node:fs");
+
+          const tagVersion = process.env.TAG_VERSION;
+          const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          const versions = JSON.parse(fs.readFileSync("versions.json", "utf8"));
+
+          if (manifest.version !== tagVersion) {
+            throw new Error(`manifest.json version ${manifest.version} does not match tag ${tagVersion}`);
+          }
+
+          if (pkg.version !== tagVersion) {
+            throw new Error(`package.json version ${pkg.version} does not match tag ${tagVersion}`);
+          }
+
+          if (versions[tagVersion] !== manifest.minAppVersion) {
+            throw new Error(`versions.json entry for ${tagVersion} must equal minAppVersion ${manifest.minAppVersion}`);
+          }
+          NODE
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Generate release notes
+        run: |
+          awk -v version="$TAG_VERSION" '
+            $0 ~ "^## \\[" version "\\]" { capture = 1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "Release $TAG_VERSION" > release-notes.md
+          fi
+
+      - name: Attest manifest
+        uses: actions/attest@v4
+        with:
+          subject-path: manifest.json
+
+      - name: Attest plugin bundle
+        uses: actions/attest@v4
+        with:
+          subject-path: main.js
+
+      - name: Attest styles
+        uses: actions/attest@v4
+        with:
+          subject-path: styles.css
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            manifest.json \
+            main.js \
+            styles.css \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG_VERSION" \
+            --notes-file release-notes.md \
+            --verify-tag

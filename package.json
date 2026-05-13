@@ -1,6 +1,6 @@
 {
 	"name": "hide-sidebars",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Enhanced sidebar control with auto-hide mode for Obsidian.",
 	"main": "main.js",
 	"scripts": {
