@@ -1,0 +1,7 @@
+node_modules/
+main.js
+data.json
+*.map
+*.zip
+.DS_Store
+npm-debug.log*
