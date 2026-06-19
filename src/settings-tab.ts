@@ -47,6 +47,16 @@ export class HideSidebarsSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName('Double-click sidebar buttons')
+			.setDesc('Turn off auto-hide for a sidebar by double-clicking its native sidebar toggle button.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.doubleClickSidebarButtonToDisable)
+				.onChange(async (value) => {
+					this.plugin.settings.doubleClickSidebarButtonToDisable = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName('Transition delay (ms)')
 			.setDesc(`Delay before a sidebar collapses after the mouse leaves (0-${MAX_DELAY_MS}ms, default: 50ms).`)
 			.addSlider((slider) => slider
