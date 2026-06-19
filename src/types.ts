@@ -12,6 +12,7 @@ export interface HideSidebarsSettings {
 	overlayMode: boolean;
 	delay: number;
 	showNotifications: boolean;
+	doubleClickSidebarButtonToDisable: boolean;
 	leftPluginActive: boolean;
 	rightPluginActive: boolean;
 }
@@ -34,6 +35,7 @@ export const DEFAULT_SETTINGS: HideSidebarsSettings = {
 	overlayMode: false,
 	delay: 50,
 	showNotifications: false,
+	doubleClickSidebarButtonToDisable: false,
 	leftPluginActive: true,
 	rightPluginActive: true,
 };

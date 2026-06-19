@@ -137,59 +137,83 @@ export default class HideSidebarsPlugin extends Plugin {
 
 	initEvents(): void {
 		this.registerDomEvent(window, 'mousemove', (e: MouseEvent) => {
-			const now = Date.now();
+			const now = e.timeStamp;
 			if (now - this.lastMouseMoveTime < THROTTLE_MS) return;
 			this.lastMouseMoveTime = now;
 			this.handleMouseMove(e);
 		});
+
+		this.registerDomEvent(window.activeDocument, 'dblclick', (e: MouseEvent) => {
+			this.handleSidebarButtonDoubleClick(e);
+		});
 	}
 
 	handleMouseMove(e: MouseEvent): void {
+		const leftActive = Boolean(this.leftController?.isActive());
+		const rightActive = Boolean(this.rightController?.isActive());
+		if (!leftActive && !rightActive) return;
+
 		const x = e.clientX;
 		const y = e.clientY;
-		const target = e.target;
+		const target = e.target instanceof Element ? e.target : null;
 		const windowWidth = window.innerWidth;
 		const windowHeight = window.innerHeight;
 
-		if (this.leftController?.isActive()) {
-			const padding = this.getEffectiveTriggerPadding(this.settings.leftTriggerPadding, windowHeight);
-			const inEdgeX = x < this.settings.leftTriggerWidth;
-			const inEdgeY = y >= padding && y <= windowHeight - padding;
-			const inEdge = inEdgeX && inEdgeY;
-			const inSafe = this.isSafeZone('left', target);
-
-			if (inEdge) {
-				this.leftController.expand();
-			} else if (inSafe) {
-				if (this.leftController.isExpanded || this.leftController.containerEl.classList.contains('hide-sidebars-overlay-left')) {
-					this.leftController.cancelCollapse();
-				}
-			} else {
-				this.leftController.scheduleCollapse();
-			}
+		if (leftActive && this.leftController) {
+			this.handleSidebarMouseMove(this.leftController, 'left', x, y, target, windowWidth, windowHeight);
 		}
 
-		if (this.rightController?.isActive()) {
-			const padding = this.getEffectiveTriggerPadding(this.settings.rightTriggerPadding, windowHeight);
-			const inEdgeX = x > windowWidth - this.settings.rightTriggerWidth;
-			const inEdgeY = y >= padding && y <= windowHeight - padding;
-			const inEdge = inEdgeX && inEdgeY;
-			const inSafe = this.isSafeZone('right', target);
-
-			if (inEdge) {
-				this.rightController.expand();
-			} else if (inSafe) {
-				if (this.rightController.isExpanded || this.rightController.containerEl.classList.contains('hide-sidebars-overlay-right')) {
-					this.rightController.cancelCollapse();
-				}
-			} else {
-				this.rightController.scheduleCollapse();
-			}
+		if (rightActive && this.rightController) {
+			this.handleSidebarMouseMove(this.rightController, 'right', x, y, target, windowWidth, windowHeight);
 		}
 	}
 
-	isSafeZone(side: SidebarSide, target: EventTarget | null): boolean {
-		if (!(target instanceof Element)) return false;
+	handleSidebarButtonDoubleClick(e: MouseEvent): void {
+		if (!this.settings.doubleClickSidebarButtonToDisable) return;
+		if (!(e.target instanceof Element)) return;
+
+		const side = this.getSidebarButtonSide(e.target);
+		if (!side) return;
+
+		const controller = side === 'left' ? this.leftController : this.rightController;
+		if (!controller?.isActive()) return;
+
+		e.preventDefault();
+		e.stopPropagation();
+		controller.toggle();
+	}
+
+	private handleSidebarMouseMove(
+		controller: SidebarController,
+		side: SidebarSide,
+		x: number,
+		y: number,
+		target: Element | null,
+		windowWidth: number,
+		windowHeight: number
+	): void {
+		const triggerPadding = side === 'left' ? this.settings.leftTriggerPadding : this.settings.rightTriggerPadding;
+		const triggerWidth = side === 'left' ? this.settings.leftTriggerWidth : this.settings.rightTriggerWidth;
+		const padding = this.getEffectiveTriggerPadding(triggerPadding, windowHeight);
+		const inEdgeY = y >= padding && y <= windowHeight - padding;
+		const inEdgeX = side === 'left' ? x < triggerWidth : x > windowWidth - triggerWidth;
+
+		if (inEdgeX && inEdgeY) {
+			controller.expand();
+			return;
+		}
+
+		if (target && this.isSafeZone(side, target)) {
+			if (controller.isExpanded || controller.containerEl.classList.contains(controller.overlayClass)) {
+				controller.cancelCollapse();
+			}
+			return;
+		}
+
+		controller.scheduleCollapse();
+	}
+
+	private isSafeZone(side: SidebarSide, target: Element): boolean {
 		if (target.closest('.menu') || target.closest('.modal') || target.closest('.popover')) return true;
 
 		if (target.closest('.view-header') || target.closest('.workspace-tab-header-container')) return true;
@@ -203,6 +227,12 @@ export default class HideSidebarsPlugin extends Plugin {
 		}
 
 		return false;
+	}
+
+	private getSidebarButtonSide(target: Element): SidebarSide | null {
+		if (target.closest('.sidebar-toggle-button.mod-left')) return 'left';
+		if (target.closest('.sidebar-toggle-button.mod-right')) return 'right';
+		return null;
 	}
 
 	async setOverlayMode(value: boolean): Promise<void> {
