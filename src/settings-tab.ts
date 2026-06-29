@@ -47,6 +47,16 @@ export class HideSidebarsSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName('Toggle Mode on Doubleclick')
+			.setDesc('Doubleclick on a sidebar to toggle between Auto-hide and Always-show modes.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.ToggleOnDoubleClick)
+				.onChange(async (value) => {
+					this.plugin.settings.ToggleOnDoubleClick = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName('Transition delay (ms)')
 			.setDesc(`Delay before a sidebar collapses after the mouse leaves (0-${MAX_DELAY_MS}ms, default: 50ms).`)
 			.addSlider((slider) => slider

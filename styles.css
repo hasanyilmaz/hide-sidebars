@@ -8,11 +8,11 @@
 .hide-sidebars-overlay-left {
   position: absolute;
   left: var(--ribbon-width, 40px);
-  top: 0;
+  top: var(--header-height, 0);
   bottom: 0;
   z-index: 10;
   box-shadow: 2px 0 20px var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.3));
-  height: 100%;
+  height: calc(100% - var(--header-height)) !important;
   pointer-events: none;
 }
 
@@ -23,11 +23,11 @@
 .hide-sidebars-overlay-right {
   position: absolute;
   right: 0;
-  top: 0;
+  top: var(--header-height, 0);
   bottom: 0;
   z-index: 10;
   box-shadow: -2px 0 20px var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.3));
-  height: 100%;
+  height: calc(100% - var(--header-height)) !important;
   pointer-events: none;
 }
 
@@ -35,11 +35,11 @@
   pointer-events: auto;
 }
 
-/* Content inside overlay sidebars above main content */
-.hide-sidebars-overlay-left > *,
-.hide-sidebars-overlay-right > * {
+/* Content inside overlay sidebars above main content - and below resize handles */
+.hide-sidebars-overlay-left > *:not(.workspace-leaf-resize-handle),
+.hide-sidebars-overlay-right > *:not(.workspace-leaf-resize-handle) {
   position: relative;
-  z-index: 50;
+  z-index: 14;
 }
 
 /* Ribbons always visible on top */
@@ -76,4 +76,18 @@ body.is-hidden-frameless .workspace-split.mod-left-split.hide-sidebars-overlay-l
   visibility: hidden;
   pointer-events: none;
   transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+/* -- Windows default installation fixes -- */
+/* fixes unclickable dead zone on windows titlebar buttons when overlay mode is active */
+body.mod-windows.is-frameless.is-hidden-frameless .workspace:has(.hide-sidebars-overlay-right) .workspace-split.mod-vertical.mod-root > .mod-top > .workspace-tab-header-container {
+  margin-right: calc(44px * 3);
+}
+/* fixes created gap in titlebar after previous fix */
+body.mod-windows.is-frameless.is-hidden-frameless:has(.workspace):has(.hide-sidebars-overlay-right) .titlebar {
+  height: calc(var(--header-height));
+}
+/* removes shadow since it caused glitches at windows titlebar buttons */
+body.mod-windows.is-frameless.is-hidden-frameless div:is(.hide-sidebars-overlay-left, .hide-sidebars-overlay-right) {
+  box-shadow: unset;
 }

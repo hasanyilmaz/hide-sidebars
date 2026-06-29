@@ -142,6 +142,10 @@ export default class HideSidebarsPlugin extends Plugin {
 			this.lastMouseMoveTime = now;
 			this.handleMouseMove(e);
 		});
+
+		this.registerDomEvent(window, 'dblclick', (e: MouseEvent) => {
+			this.handleDoubleClick(e);
+		});
 	}
 
 	handleMouseMove(e: MouseEvent): void {
@@ -152,11 +156,7 @@ export default class HideSidebarsPlugin extends Plugin {
 		const windowHeight = window.innerHeight;
 
 		if (this.leftController?.isActive()) {
-			const padding = this.getEffectiveTriggerPadding(this.settings.leftTriggerPadding, windowHeight);
-			const inEdgeX = x < this.settings.leftTriggerWidth;
-			const inEdgeY = y >= padding && y <= windowHeight - padding;
-			const inEdge = inEdgeX && inEdgeY;
-			const inSafe = this.isSafeZone('left', target);
+			const { inEdge, inSafe } = this.getZones('left', x, y, windowWidth, windowHeight, target);
 
 			if (inEdge) {
 				this.leftController.expand();
@@ -170,11 +170,7 @@ export default class HideSidebarsPlugin extends Plugin {
 		}
 
 		if (this.rightController?.isActive()) {
-			const padding = this.getEffectiveTriggerPadding(this.settings.rightTriggerPadding, windowHeight);
-			const inEdgeX = x > windowWidth - this.settings.rightTriggerWidth;
-			const inEdgeY = y >= padding && y <= windowHeight - padding;
-			const inEdge = inEdgeX && inEdgeY;
-			const inSafe = this.isSafeZone('right', target);
+			const { inEdge, inSafe } = this.getZones('right', x, y, windowWidth, windowHeight, target);
 
 			if (inEdge) {
 				this.rightController.expand();
@@ -186,6 +182,46 @@ export default class HideSidebarsPlugin extends Plugin {
 				this.rightController.scheduleCollapse();
 			}
 		}
+	}
+
+	handleDoubleClick(e: MouseEvent): void {
+		const x = e.clientX;
+		const y = e.clientY;
+		const target = e.target;
+		const windowWidth = window.innerWidth;
+		const windowHeight = window.innerHeight;
+
+		if (this.settings.ToggleOnDoubleClick) {
+			const interactiveElements = ['a', 'input', 'textarea', 'button', 'select', 'span', '[contenteditable="true"]', '.clickable-icon', '.workspace-leaf-resize-handle', '.tree-item-self', '.tappable', '.is-clickable' ];
+			const isInteractiveElement = target instanceof Element && (target.closest(interactiveElements.join(', ')) !== null);
+			if (isInteractiveElement) return;
+
+			const { inEdge: inLeftEdge, inSafe: inLeftSafe } = this.getZones('left', x, y, windowWidth, windowHeight, target);
+			if (inLeftEdge || inLeftSafe) {
+				this.leftController?.setActive(!this.leftController.isActive());
+				if (this.settings.overlayMode) {
+					this.leftController?.syncOverlayMode();
+				}
+			}
+
+			const { inEdge: inRightEdge, inSafe: inRightSafe } = this.getZones('right', x, y, windowWidth, windowHeight, target);
+			if (inRightEdge || inRightSafe) {
+				this.rightController?.setActive(!this.rightController.isActive());
+				if (this.settings.overlayMode) {
+					this.rightController?.syncOverlayMode();
+				}
+			}
+		}
+	}
+
+	getZones(side: SidebarSide, x: number, y: number, windowWidth: number, windowHeight: number, target: EventTarget | null): { inEdge: boolean, inSafe: boolean } {
+		const padding = this.getEffectiveTriggerPadding(side === 'left' ? this.settings.leftTriggerPadding : this.settings.rightTriggerPadding, windowHeight);
+		const inEdgeX = (side === 'left' ? x < this.settings.leftTriggerWidth : x > windowWidth - this.settings.rightTriggerWidth);
+		const inEdgeY = y >= padding && y <= windowHeight - padding;
+		const inEdge = inEdgeX && inEdgeY;
+		const inSafe = this.isSafeZone(side, target);
+
+		return { inEdge, inSafe };
 	}
 
 	isSafeZone(side: SidebarSide, target: EventTarget | null): boolean {
