@@ -50,9 +50,9 @@ export class HideSidebarsSettingTab extends PluginSettingTab {
 			.setName('Toggle Mode on Doubleclick')
 			.setDesc('Doubleclick on a sidebar to toggle between Auto-hide and Always-show modes.')
 			.addToggle((toggle) => toggle
-				.setValue(this.plugin.settings.ToggleOnDoubleClick)
+				.setValue(this.plugin.settings.toggleOnDoubleClick)
 				.onChange(async (value) => {
-					this.plugin.settings.ToggleOnDoubleClick = value;
+					this.plugin.settings.toggleOnDoubleClick = value;
 					await this.plugin.saveSettings();
 				}));
 

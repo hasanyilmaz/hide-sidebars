@@ -191,7 +191,7 @@ export default class HideSidebarsPlugin extends Plugin {
 		const windowWidth = window.innerWidth;
 		const windowHeight = window.innerHeight;
 
-		if (this.settings.ToggleOnDoubleClick) {
+		if (this.settings.toggleOnDoubleClick) {
 			const interactiveElements = ['a', 'input', 'textarea', 'button', 'select', 'span', '[contenteditable="true"]', '.clickable-icon', '.workspace-leaf-resize-handle', '.tree-item-self', '.tappable', '.is-clickable' ];
 			const isInteractiveElement = target instanceof Element && (target.closest(interactiveElements.join(', ')) !== null);
 			if (isInteractiveElement) return;
