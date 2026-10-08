@@ -1,4 +1,5 @@
 export type SidebarSide = 'left' | 'right';
+export type OverlayStyle = 'solid' | 'soft';
 
 export interface HideSidebarsSettings {
 	leftSidebarWidth: number;
@@ -10,7 +11,9 @@ export interface HideSidebarsSettings {
 	leftTriggerPadding: number;
 	rightTriggerPadding: number;
 	overlayMode: boolean;
+	overlayStyle: OverlayStyle;
 	delay: number;
+	revealDelay: number;
 	showNotifications: boolean;
 	leftPluginActive: boolean;
 	rightPluginActive: boolean;
@@ -32,12 +35,15 @@ export const DEFAULT_SETTINGS: HideSidebarsSettings = {
 	leftTriggerPadding: 100,
 	rightTriggerPadding: 100,
 	overlayMode: false,
+	overlayStyle: 'solid',
 	delay: 50,
+	revealDelay: 0,
 	showNotifications: false,
 	leftPluginActive: true,
 	rightPluginActive: true,
 };
 
 export const MAX_DELAY_MS = 5000;
+export const MAX_REVEAL_DELAY_MS = 2000;
 export const THROTTLE_MS = 16;
 export const MIN_VERTICAL_TRIGGER_HEIGHT = 50;

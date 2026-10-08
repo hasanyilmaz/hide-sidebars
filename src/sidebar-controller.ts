@@ -1,6 +1,9 @@
 import { App, Notice } from 'obsidian';
 import type { HideSidebarsPluginHost, HideSidebarsSettings, SidebarSide } from './types';
 
+const BASE_OVERLAY_Z_INDEX = 30;
+const FRAME_SPACE_MARKER = 'hide-sidebars-frame-space';
+
 interface SidebarSplit {
 	collapsed: boolean;
 	containerEl: HTMLElement;
@@ -15,6 +18,7 @@ export class SidebarController {
 	private settings: HideSidebarsSettings;
 	private plugin: HideSidebarsPluginHost;
 	private collapseTimer: number | null;
+	private expandTimer: number | null;
 
 	constructor(app: App, side: SidebarSide, settings: HideSidebarsSettings, plugin: HideSidebarsPluginHost) {
 		this.app = app;
@@ -22,6 +26,7 @@ export class SidebarController {
 		this.settings = settings;
 		this.plugin = plugin;
 		this.collapseTimer = null;
+		this.expandTimer = null;
 	}
 
 	get split(): SidebarSplit {
@@ -35,6 +40,11 @@ export class SidebarController {
 
 	get isExpanded(): boolean {
 		return !this.split.collapsed;
+	}
+
+	/** True when the sidebar is actually on screen (expanded and not virtually hidden by overlay mode). */
+	get isVisible(): boolean {
+		return this.isExpanded && !this.containerEl.classList.contains('hide-sidebars-hidden');
 	}
 
 	isEnabled(): boolean {
@@ -69,11 +79,50 @@ export class SidebarController {
 	applyOverlayClass(): void {
 		if (this.isActive() && this.settings.overlayMode) {
 			this.containerEl.classList.add(this.overlayClass);
+			this.applyOverlayLayout();
 		}
 	}
 
 	removeOverlayClass(): void {
+		const wasOverlay = this.containerEl.classList.contains(this.overlayClass);
 		this.containerEl.classList.remove('hide-sidebars-overlay-left', 'hide-sidebars-overlay-right');
+		if (wasOverlay) {
+			this.clearOverlayLayout();
+		}
+	}
+
+	/**
+	 * Called when the mouse enters the edge trigger zone.
+	 * Reveals the sidebar after `revealDelay` ms; an already visible sidebar just stays open.
+	 */
+	requestExpand(): void {
+		if (!this.isActive()) return;
+		this.cancelCollapse();
+
+		if (this.isVisible) {
+			this.cancelExpand();
+			return;
+		}
+
+		const delay = Math.max(0, this.settings.revealDelay);
+		if (delay === 0) {
+			this.expand();
+			return;
+		}
+
+		// Keep the first timer: continued mouse movement inside the zone must not restart the countdown.
+		if (this.expandTimer !== null) return;
+		this.expandTimer = window.setTimeout(() => {
+			this.expandTimer = null;
+			this.expand();
+		}, delay);
+	}
+
+	cancelExpand(): void {
+		if (this.expandTimer !== null) {
+			window.clearTimeout(this.expandTimer);
+			this.expandTimer = null;
+		}
 	}
 
 	expand(): void {
@@ -83,7 +132,7 @@ export class SidebarController {
 		this.containerEl.classList.remove('hide-sidebars-hidden');
 
 		if (this.settings.overlayMode) {
-			this.containerEl.classList.add(this.overlayClass);
+			this.applyOverlayClass();
 		} else {
 			this.removeOverlayClass();
 		}
@@ -93,6 +142,7 @@ export class SidebarController {
 		}
 
 		this.cancelCollapse();
+		this.cancelExpand();
 	}
 
 	scheduleCollapse(): void {
@@ -136,6 +186,7 @@ export class SidebarController {
 
 	toggle(): void {
 		this.cancelCollapse();
+		this.cancelExpand();
 
 		if (!this.isEnabled()) {
 			this.restoreNativeState(true);
@@ -155,6 +206,7 @@ export class SidebarController {
 
 	initializeFromSettings(): void {
 		this.cancelCollapse();
+		this.cancelExpand();
 
 		if (!this.isActive()) {
 			this.cleanup();
@@ -180,6 +232,7 @@ export class SidebarController {
 
 	syncOverlayMode(): void {
 		this.cancelCollapse();
+		this.cancelExpand();
 
 		if (!this.isActive()) {
 			this.containerEl.classList.remove('hide-sidebars-hidden');
@@ -207,6 +260,7 @@ export class SidebarController {
 
 	restoreNativeState(expandSidebar: boolean): void {
 		this.cancelCollapse();
+		this.cancelExpand();
 		this.containerEl.classList.remove('hide-sidebars-autohide', 'hide-sidebars-hidden');
 		this.removeOverlayClass();
 
@@ -225,6 +279,125 @@ export class SidebarController {
 
 	private getConfiguredWidth(): number {
 		return this.side === 'left' ? this.settings.leftSidebarWidth : this.settings.rightSidebarWidth;
+	}
+
+	/**
+	 * Overlay layout is written as inline styles on purpose: themes and Obsidian's
+	 * frameless-window rules target the sidebar with selectors of varying strength,
+	 * and inline styles beat all of them without resorting to !important.
+	 * The values are dynamic anyway (the offset depends on the ribbon's current width).
+	 */
+	private applyOverlayLayout(): void {
+		const parent = this.containerEl.parentElement;
+		parent?.classList.add('hide-sidebars-overlay-host');
+
+		const offset = `${this.getRibbonOffset(parent)}px`;
+		this.updateRootFrameSpace(true);
+		this.containerEl.setCssStyles({
+			position: 'absolute',
+			top: '0',
+			bottom: '0',
+			left: this.side === 'left' ? offset : '',
+			right: this.side === 'right' ? offset : '',
+			height: 'auto',
+			zIndex: String(this.getOverlayZIndex(parent)),
+			// Soft edge style paints a gradient wider than the sidebar; let it overflow.
+			overflow: this.settings.overlayStyle === 'soft' ? 'visible' : '',
+		});
+	}
+
+	/** Re-apply overlay layout after Obsidian changes the workspace (layout change, window resize). */
+	refreshOverlayLayout(): void {
+		if (this.containerEl.classList.contains(this.overlayClass)) {
+			this.applyOverlayLayout();
+		}
+	}
+
+	private clearOverlayLayout(): void {
+		this.updateRootFrameSpace(false);
+		this.containerEl.setCssStyles({
+			position: '',
+			top: '',
+			bottom: '',
+			left: '',
+			right: '',
+			height: '',
+			zIndex: '',
+			overflow: '',
+		});
+
+		const parent = this.containerEl.parentElement;
+		if (parent && !parent.querySelector(':scope > .hide-sidebars-overlay-left, :scope > .hide-sidebars-overlay-right')) {
+			parent.classList.remove('hide-sidebars-overlay-host');
+		}
+	}
+
+	/**
+	 * Stack above the main area's tab bar. Some setups (macOS frameless window, card-style themes)
+	 * give that tab bar its own z-index; with an equal value the left sidebar, which comes first in
+	 * the DOM, would be painted underneath it.
+	 */
+	private getOverlayZIndex(parent: HTMLElement | null): number {
+		let max = BASE_OVERLAY_Z_INDEX - 1;
+		const candidates = parent?.querySelectorAll<HTMLElement>(
+			':scope > .mod-root, :scope > .mod-root .workspace-tab-header-container'
+		) ?? [];
+
+		for (const el of Array.from(candidates)) {
+			const z = parseInt(getComputedStyle(el).zIndex, 10);
+			if (!isNaN(z)) max = Math.max(max, z);
+		}
+
+		return max + 1;
+	}
+
+	/**
+	 * macOS frameless window: Obsidian moves the traffic-light spacing (`mod-top-left-space`) to the
+	 * main area's top-left tab group only when the left sidebar is natively collapsed. In overlay mode
+	 * the sidebar stays natively expanded, so add that spacing ourselves, otherwise the main tabs
+	 * end up under the window buttons while the sidebar is hidden.
+	 */
+	private updateRootFrameSpace(enable: boolean): void {
+		if (this.side !== 'left') return;
+
+		const root = this.app.workspace.rootSplit as unknown as { containerEl?: HTMLElement };
+		const rootEl = root.containerEl;
+		if (!rootEl) return;
+
+		for (const el of Array.from(rootEl.querySelectorAll<HTMLElement>(`.${FRAME_SPACE_MARKER}`))) {
+			el.classList.remove(FRAME_SPACE_MARKER, 'mod-top-left-space');
+		}
+
+		if (!enable) return;
+
+		let leftmost: HTMLElement | null = null;
+		let leftmostX = Infinity;
+		for (const tabs of Array.from(rootEl.querySelectorAll<HTMLElement>('.workspace-tabs.mod-top'))) {
+			const x = tabs.getBoundingClientRect().left;
+			if (x < leftmostX) {
+				leftmostX = x;
+				leftmost = tabs;
+			}
+		}
+
+		// Already spaced by Obsidian itself: leave it alone so we never remove a native class.
+		if (!leftmost || leftmost.classList.contains('mod-top-left-space')) return;
+		leftmost.classList.add('mod-top-left-space', FRAME_SPACE_MARKER);
+	}
+
+	/** Width of the visible ribbon on this side (0 when the ribbon is hidden or absent). */
+	private getRibbonOffset(parent: HTMLElement | null): number {
+		const ribbon = parent?.querySelector<HTMLElement>(`:scope > .workspace-ribbon.mod-${this.side}`);
+		if (!parent || !ribbon) return 0;
+
+		const parentRect = parent.getBoundingClientRect();
+		const ribbonRect = ribbon.getBoundingClientRect();
+		if (ribbonRect.width <= 0) return 0;
+
+		const offset = this.side === 'left'
+			? ribbonRect.right - parentRect.left
+			: parentRect.right - ribbonRect.left;
+		return Math.max(0, Math.round(offset));
 	}
 
 	private expandSplit(): void {

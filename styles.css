@@ -1,45 +1,123 @@
-/* Hide Sidebars Plugin v1.0.0 */
+/* Hide Sidebars Plugin */
 
 /*
    Overlay Mode
-   position: absolute floats the sidebar over content.
-   pointer-events: none on container, auto on children for click-through.
+   Layout (position, insets, z-index, background) is set as inline styles by
+   sidebar-controller.ts so it cannot be overridden by theme selectors.
+   Only cosmetics live here.
+   Do NOT change the position of the split's children: the resize handle is
+   absolutely positioned by Obsidian, and turning it into a normal block pushes
+   the sidebar content down to the lower half of the window.
 */
-.hide-sidebars-overlay-left {
-  position: absolute;
-  left: var(--ribbon-width, 40px);
-  top: 0;
-  bottom: 0;
-  z-index: 10;
-  box-shadow: 2px 0 20px var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.3));
-  height: 100%;
-  pointer-events: none;
+.hide-sidebars-overlay-host {
+  position: relative;
 }
 
-.hide-sidebars-overlay-left > * {
-  pointer-events: auto;
+.hide-sidebars-overlay-left {
+  box-shadow: 2px 0 20px var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.3));
 }
 
 .hide-sidebars-overlay-right {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 10;
   box-shadow: -2px 0 20px var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.3));
-  height: 100%;
+}
+
+/*
+   Opaque backdrop for the floating sidebar.
+   In translucent-window mode Obsidian forces the left sidebar's own background
+   to transparent (so the desktop shows through), which would let the editor's
+   tab bar show through the overlay. A pseudo-element is painted above the
+   split's own background but below its content (the split is a stacking
+   context: positioned + z-index), so it is unaffected by that override.
+*/
+.hide-sidebars-overlay-left::before,
+.hide-sidebars-overlay-right::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--color-base-20, var(--background-secondary));
   pointer-events: none;
 }
 
-.hide-sidebars-overlay-right > * {
-  pointer-events: auto;
+/*
+   Soft edge overlay style (optional setting), modelled on the Cupertino
+   theme's hover sidebar: no shadow; the backdrop is 1.5x the sidebar width,
+   solid editor colour for the first half and fading to transparent, so the
+   sidebar melts into the editor. Shows/hides with a slide + fade.
+   No backdrop-filter: blur does not work reliably over a translucent window.
+*/
+body.hide-sidebars-soft-overlay {
+  --hide-sidebars-soft-duration: 320ms;
+  --hide-sidebars-soft-easing: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Resolved here on <body>, before the sidebar overrides the background variables below. */
+  --hide-sidebars-soft-background: var(--background-primary);
 }
 
-/* Content inside overlay sidebars above main content */
-.hide-sidebars-overlay-left > *,
-.hide-sidebars-overlay-right > * {
-  position: relative;
-  z-index: 50;
+/*
+   The gradient backdrop is only visible if the sidebar's own panels are
+   transparent (as they are in Cupertino). Obsidian and most themes/plugins
+   paint sidebar panels through these variables, so clear them inside the
+   floating sidebar only.
+*/
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-left,
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-right {
+  --background-primary: transparent;
+  --background-secondary: transparent;
+  --background-secondary-alt: transparent;
+  --tab-container-background: transparent;
+  --titlebar-background: transparent;
+  --titlebar-background-focused: transparent;
+  /* No hard edges: Cupertino's sidebars have no dividers either. */
+  --divider-color: transparent;
+  --tab-outline-color: transparent;
+  /*
+     Plugins that resolve their own colour variables on <body> are not reached
+     by the overrides above and need their variables cleared directly.
+     Notebook Navigator: navigation pane and file list backgrounds.
+  */
+  --nn-theme-nav-bg: transparent;
+  --nn-theme-list-bg: transparent;
+}
+
+/* The sidebar/editor divider is drawn by the resize handle, not the split. */
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-left > .workspace-leaf-resize-handle,
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-right > .workspace-leaf-resize-handle {
+  border-color: transparent;
+}
+
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-left,
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-right {
+  box-shadow: none;
+  border: none;
+  transition:
+    transform var(--hide-sidebars-soft-duration) var(--hide-sidebars-soft-easing),
+    opacity var(--hide-sidebars-soft-duration) var(--hide-sidebars-soft-easing),
+    visibility var(--hide-sidebars-soft-duration);
+}
+
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-left::before,
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-right::before {
+  width: 150%;
+}
+
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-left::before {
+  right: auto;
+  left: 0;
+  background: linear-gradient(to right, var(--hide-sidebars-soft-background) 50%, transparent);
+}
+
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-right::before {
+  right: 0;
+  left: auto;
+  background: linear-gradient(to left, var(--hide-sidebars-soft-background) 50%, transparent);
+}
+
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-left.hide-sidebars-hidden {
+  transform: translateX(-24px);
+}
+
+body.hide-sidebars-soft-overlay .hide-sidebars-overlay-right.hide-sidebars-hidden {
+  transform: translateX(24px);
 }
 
 /* Ribbons always visible on top */
@@ -71,7 +149,7 @@ body.is-hidden-frameless .workspace-split.mod-left-split.hide-sidebars-overlay-l
 }
 
 /* Virtual Collapse State for Overlay Mode */
-.hide-sidebars-hidden {
+.hide-sidebars-autohide.hide-sidebars-hidden {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;

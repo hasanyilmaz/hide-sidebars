@@ -9,7 +9,7 @@ It is built for desktop vaults where you want more writing space without losing 
 - Toggle auto-hide separately for the left sidebar, right sidebar, or both sidebars.
 - Reveal sidebars by moving the mouse to the matching screen edge.
 - Use overlay mode to float sidebars over the editor instead of resizing the workspace.
-- Configure sidebar width, trigger zone width, vertical trigger padding, and collapse delay.
+- Configure sidebar width, trigger zone width, vertical trigger padding, reveal delay, and collapse delay.
 - Control the plugin from ribbon icons, the command palette, or the plugin settings tab.
 - Clean up plugin-applied sidebar classes automatically when the plugin is disabled.
 
@@ -53,7 +53,9 @@ The command palette also includes:
 ## Settings
 
 - **Overlay mode**: Float sidebars over the editor instead of pushing content aside.
+- **Overlay style**: *Solid* (opaque sidebar with a drop shadow) or *Soft edge* (inspired by the Cupertino theme's hover sidebar: the sidebar fades into the editor and slides in from the edge).
 - **Show notifications**: Show a short notice when changing sidebar modes.
+- **Reveal delay**: How long the mouse must stay at the screen edge before a sidebar appears.
 - **Transition delay**: Delay before a sidebar collapses after the mouse leaves.
 - **Sidebar width**: Width used when expanding each sidebar.
 - **Trigger zone width**: Width of the hover area at the screen edge.

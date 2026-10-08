@@ -5,6 +5,7 @@ import {
 	DEFAULT_SETTINGS,
 	HideSidebarsSettings,
 	MIN_VERTICAL_TRIGGER_HEIGHT,
+	OverlayStyle,
 	SidebarSide,
 	THROTTLE_MS,
 } from './src/types';
@@ -21,6 +22,7 @@ export default class HideSidebarsPlugin extends Plugin {
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.lastMouseMoveTime = 0;
+		this.syncOverlayStyle();
 
 		this.app.workspace.onLayoutReady(() => {
 			this.initControllers();
@@ -65,6 +67,7 @@ export default class HideSidebarsPlugin extends Plugin {
 	}
 
 	onunload(): void {
+		activeDocument.body.classList.remove('hide-sidebars-soft-overlay');
 		this.leftController?.cleanup();
 		this.rightController?.cleanup();
 	}
@@ -136,6 +139,14 @@ export default class HideSidebarsPlugin extends Plugin {
 	}
 
 	initEvents(): void {
+		// Obsidian recomputes tab-group classes on layout changes and resizes; re-apply overlay layout after it.
+		const refreshOverlay = () => {
+			this.leftController?.refreshOverlayLayout();
+			this.rightController?.refreshOverlayLayout();
+		};
+		this.registerEvent(this.app.workspace.on('layout-change', refreshOverlay));
+		this.registerEvent(this.app.workspace.on('resize', refreshOverlay));
+
 		this.registerDomEvent(window, 'mousemove', (e: MouseEvent) => {
 			const now = Date.now();
 			if (now - this.lastMouseMoveTime < THROTTLE_MS) return;
@@ -159,12 +170,14 @@ export default class HideSidebarsPlugin extends Plugin {
 			const inSafe = this.isSafeZone('left', target);
 
 			if (inEdge) {
-				this.leftController.expand();
+				this.leftController.requestExpand();
 			} else if (inSafe) {
+				this.leftController.cancelExpand();
 				if (this.leftController.isExpanded || this.leftController.containerEl.classList.contains('hide-sidebars-overlay-left')) {
 					this.leftController.cancelCollapse();
 				}
 			} else {
+				this.leftController.cancelExpand();
 				this.leftController.scheduleCollapse();
 			}
 		}
@@ -177,12 +190,14 @@ export default class HideSidebarsPlugin extends Plugin {
 			const inSafe = this.isSafeZone('right', target);
 
 			if (inEdge) {
-				this.rightController.expand();
+				this.rightController.requestExpand();
 			} else if (inSafe) {
+				this.rightController.cancelExpand();
 				if (this.rightController.isExpanded || this.rightController.containerEl.classList.contains('hide-sidebars-overlay-right')) {
 					this.rightController.cancelCollapse();
 				}
 			} else {
+				this.rightController.cancelExpand();
 				this.rightController.scheduleCollapse();
 			}
 		}
@@ -216,6 +231,19 @@ export default class HideSidebarsPlugin extends Plugin {
 		}
 	}
 
+	async setOverlayStyle(value: OverlayStyle): Promise<void> {
+		this.settings.overlayStyle = value;
+		await this.saveSettings();
+		this.syncOverlayStyle();
+		this.leftController?.refreshOverlayLayout();
+		this.rightController?.refreshOverlayLayout();
+	}
+
+	/** Overlay style is mostly CSS, switched by a body class. */
+	syncOverlayStyle(): void {
+		activeDocument.body.classList.toggle('hide-sidebars-soft-overlay', this.settings.overlayStyle === 'soft');
+	}
+
 	async setSideEnabled(side: SidebarSide, value: boolean): Promise<void> {
 		if (side === 'left') {
 			this.settings.leftSideEnabled = value;
@@ -241,6 +269,11 @@ export default class HideSidebarsPlugin extends Plugin {
 		const loadedData: unknown = await this.loadData();
 		const loadedSettings = this.isSettingsObject(loadedData) ? loadedData : {};
 		this.settings = { ...DEFAULT_SETTINGS, ...loadedSettings };
+		if (this.settings.overlayStyle !== 'solid' && this.settings.overlayStyle !== 'soft') {
+			this.settings.overlayStyle = DEFAULT_SETTINGS.overlayStyle;
+		}
+		// Drop the short-lived "frosted overlay" option from earlier test builds.
+		delete (this.settings as HideSidebarsSettings & { frostedOverlay?: unknown }).frostedOverlay;
 	}
 
 	async saveSettings(): Promise<void> {
